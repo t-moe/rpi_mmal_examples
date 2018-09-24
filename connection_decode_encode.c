@@ -147,6 +147,16 @@ int main(int argc, char* argv[]) {
     CHECK_STATUS(status, "failed to enable control port");
 
 
+    /* Set the zero-copy parameter on the input port */
+    mmal_port_parameter_set_boolean(decoder->input[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
+    CHECK_STATUS(status, "failed to set zero copy on decoder input");
+
+    /* Set the zero-copy parameter on the output port */
+    status = mmal_port_parameter_set_boolean(decoder->output[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
+    CHECK_STATUS(status, "failed to set zero copy on decoder output");
+
+
+
     /* Set format of video decoder input port */
     format_in = decoder->input[0]->format;
     format_in->type = MMAL_ES_TYPE_VIDEO;
@@ -185,7 +195,7 @@ int main(int argc, char* argv[]) {
     decoder->output[0]->buffer_num = decoder->output[0]->buffer_num_min;
     decoder->output[0]->buffer_size = decoder->output[0]->buffer_size_min;
 
-    pool_in = mmal_pool_create(decoder->input[0]->buffer_num,decoder->input[0]->buffer_size);
+    pool_in = mmal_port_pool_create(decoder->input[0],decoder->input[0]->buffer_num,decoder->input[0]->buffer_size);
 
     context.queue = mmal_queue_create();
 
@@ -263,39 +273,6 @@ int main(int argc, char* argv[]) {
                                 event->buffer_size_recommended, event->buffer_size_min);
                         fprintf(stderr, "----------------------------------------\n");
                     }
-
-                    //Assume we can't reuse the buffers, so have to disable, destroy
-                    //pool, create new pool, enable port, feed in buffers.
-                    status = mmal_port_disable(encoder->output[0]);
-                    CHECK_STATUS(status, "failed to disable port");
-
-                    //Clear the queue of all buffers
-/*                     while(mmal_queue_length(pool_out->queue) != pool_out->headers_num)
-                     {
-                        MMAL_BUFFER_HEADER_T *buf;
-                        fprintf(stderr, "Wait for buffers to be returned. Have %d of %d buffers\n",
-                              mmal_queue_length(pool_out->queue), pool_out->headers_num);
-                        vcos_semaphore_wait(&context.semaphore);
-                        fprintf(stderr, "Got semaphore\n");
-                        buf = mmal_queue_get(context.queue);
-                        mmal_buffer_header_release(buf);
-                     }
-                     fprintf(stderr, "Got all buffers\n");
-
-                     mmal_port_pool_destroy(encoder->output[0], pool_out);
-                     status = mmal_format_full_copy(encoder->output[0]->format, event->format);
-                     CHECK_STATUS(status, "failed to copy port format");
-                     status = mmal_port_format_commit(encoder->output[0]);
-                     CHECK_STATUS(status, "failed to commit port format");
-
-                     pool_out = mmal_port_pool_create(encoder->output[0],
-                                          encoder->output[0]->buffer_num,
-                                          encoder->output[0]->buffer_size);
-*/
-
-                     status = mmal_port_enable(encoder->output[0], output_callback);
-                     CHECK_STATUS(status, "failed to enable port");
-                    //Allow the following loop to send all the buffers back to the decoder
                 }
 
             }
