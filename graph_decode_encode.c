@@ -1,6 +1,6 @@
 #include "bcm_host.h"
 #include "mmal.h"
-#include "util/mmal_graph.h"
+#include "util/mmal_connection.h"
 #include "util/mmal_default_components.h"
 #include "util/mmal_util_params.h"
 #include <stdio.h>
@@ -114,7 +114,7 @@ static void control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 int main(int argc, char* argv[]) {
 
     MMAL_STATUS_T status;
-    MMAL_GRAPH_T *graph = 0;
+    MMAL_CONNECTION_T *conn = NULL;
     MMAL_COMPONENT_T *decoder = 0, *encoder=0;
     MMAL_POOL_T *pool_in = 0;
     MMAL_ES_FORMAT_T * format_in=0, *format_out=0;
@@ -126,14 +126,11 @@ int main(int argc, char* argv[]) {
     SOURCE_OPEN("test.h264_2")
 
 
-    /* Create the graph */
-    status = mmal_graph_create(&graph, 0);
-    CHECK_STATUS(status, "failed to create graph");
-
-    status = mmal_graph_new_component(graph, MMAL_COMPONENT_DEFAULT_VIDEO_DECODER, &decoder);
+    /* Create the components */
+    status = mmal_component_create(MMAL_COMPONENT_DEFAULT_VIDEO_DECODER, &decoder);
     CHECK_STATUS(status, "failed to create decoder");
 
-    status = mmal_graph_new_component(graph, MMAL_COMPONENT_DEFAULT_VIDEO_ENCODER, &encoder);
+    status = mmal_component_create(MMAL_COMPONENT_DEFAULT_VIDEO_ENCODER, &encoder);
     CHECK_STATUS(status, "failed to create encoder");
 
 
@@ -197,15 +194,15 @@ int main(int argc, char* argv[]) {
 
 
     /* connect them up - this propagates port settings from outputs to inputs */
-    status = mmal_graph_new_connection(graph, decoder->output[0], encoder->input[0], 0, NULL);
+    status = mmal_connection_create(&conn, decoder->output[0], encoder->input[0], MMAL_CONNECTION_FLAG_TUNNELLING);
     log_video_format(encoder->input[0]->format);
     CHECK_STATUS(status, "failed to connect decoder to encoder")
 
 
      /* Start playback */
     fprintf(stderr, "start");
-    status = mmal_graph_enable(graph, NULL, NULL);
-    CHECK_STATUS(status, "failed to enable graph");
+    status = mmal_connection_enable(conn);
+    CHECK_STATUS(status, "failed to enable connection");
 
     status = mmal_port_enable(encoder->output[0], output_callback);
     CHECK_STATUS(status, "failed to enable output port");
@@ -318,7 +315,7 @@ int main(int argc, char* argv[]) {
 
     /* Stop everything */
     fprintf(stderr, "stop");
-    mmal_graph_disable(graph);
+    mmal_connection_disable(conn);
 
 error:
     /* Cleanup everything */
@@ -326,8 +323,8 @@ error:
         mmal_component_release(decoder);
     if (encoder)
         mmal_component_release(encoder);
-    if (graph)
-        mmal_graph_destroy(graph);
+    if (conn)
+        mmal_connection_destroy(conn);
 
     return status == MMAL_SUCCESS ? 0 : -1;
 
