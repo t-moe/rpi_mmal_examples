@@ -1,7 +1,10 @@
 #include "bcm_host.h"
 #include "mmal.h"
+#include "mmal_port.h"
+#include "mmal_pool.h"
 #include "util/mmal_connection.h"
 #include "util/mmal_default_components.h"
+#include "util/mmal_util.h"
 #include "util/mmal_util_params.h"
 #include <stdio.h>
 #include "interface/vcos/vcos.h"
@@ -116,9 +119,11 @@ int main(int argc, char* argv[]) {
     MMAL_STATUS_T status;
     MMAL_CONNECTION_T *conn = NULL;
     MMAL_COMPONENT_T *decoder = 0, *encoder=0;
-    MMAL_POOL_T *pool_in = 0;
+    MMAL_POOL_T *pool_in = NULL, *pool_out = NULL;
     MMAL_ES_FORMAT_T * format_in=0, *format_out=0;
     MMAL_BOOL_T eos_sent = MMAL_FALSE, eos_received;
+    MMAL_BUFFER_HEADER_T *buffer;
+
 
     bcm_host_init();
     vcos_semaphore_create(&context.semaphore, "example", 1);
@@ -207,10 +212,14 @@ int main(int argc, char* argv[]) {
     status = mmal_port_enable(encoder->output[0], output_callback);
     CHECK_STATUS(status, "failed to enable output port");
 
+    pool_out = mmal_port_pool_create(encoder->output[0], encoder->output[0]->buffer_num, encoder->output[0]->buffer_size);
+    while((buffer = mmal_queue_get(pool_out->queue)) != NULL)
+    {
+        mmal_port_send_buffer(encoder->output[0], buffer);
+    }
+
     while(eos_sent == MMAL_FALSE)
     {
-        MMAL_BUFFER_HEADER_T *buffer;
-
         /* Wait for buffer headers to be available on either the decoder input or the encoder output port */
         vcos_semaphore_wait(&context.semaphore);
 
@@ -257,11 +266,11 @@ int main(int argc, char* argv[]) {
 
                     //Assume we can't reuse the buffers, so have to disable, destroy
                     //pool, create new pool, enable port, feed in buffers.
-                    //status = mmal_port_disable(encoder->output[0]);
-                    //CHECK_STATUS(status, "failed to disable port");
+                    status = mmal_port_disable(encoder->output[0]);
+                    CHECK_STATUS(status, "failed to disable port");
 
                     //Clear the queue of all buffers
-                    /* while(mmal_queue_length(pool_out->queue) != pool_out->headers_num)
+/*                     while(mmal_queue_length(pool_out->queue) != pool_out->headers_num)
                      {
                         MMAL_BUFFER_HEADER_T *buf;
                         fprintf(stderr, "Wait for buffers to be returned. Have %d of %d buffers\n",
@@ -273,33 +282,34 @@ int main(int argc, char* argv[]) {
                      }
                      fprintf(stderr, "Got all buffers\n");
 
-                     mmal_port_pool_destroy(decoder->output[0], pool_out);
-                     status = mmal_format_full_copy(decoder->output[0]->format, event->format);
+                     mmal_port_pool_destroy(encoder->output[0], pool_out);
+                     status = mmal_format_full_copy(encoder->output[0]->format, event->format);
                      CHECK_STATUS(status, "failed to copy port format");
-                     status = mmal_port_format_commit(decoder->output[0]);
+                     status = mmal_port_format_commit(encoder->output[0]);
                      CHECK_STATUS(status, "failed to commit port format");
 
-                     pool_out = mmal_port_pool_create(decoder->output[0],
-                                          decoder->output[0]->buffer_num,
-                                          decoder->output[0]->buffer_size);
+                     pool_out = mmal_port_pool_create(encoder->output[0],
+                                          encoder->output[0]->buffer_num,
+                                          encoder->output[0]->buffer_size);
+*/
 
-                     status = mmal_port_enable(decoder->output[0], output_callback);
-                     CHECK_STATUS(status, "failed to enable port");*/
+                     status = mmal_port_enable(encoder->output[0], output_callback);
+                     CHECK_STATUS(status, "failed to enable port");
                     //Allow the following loop to send all the buffers back to the decoder
                 }
 
             }
             else
-                fprintf(stderr, "encoded frame (flags %x)\n", buffer->flags);
+                fprintf(stderr, "encoded frame (flags %x, length %u)\n", buffer->flags, buffer->length);
             mmal_buffer_header_release(buffer);
         }
 
         /* Send empty buffers to the output port of the encoder */
-        /*while ((buffer = mmal_queue_get(pool_out->queue)) != NULL)
+        while ((buffer = mmal_queue_get(pool_out->queue)) != NULL)
             {
-               status = mmal_port_send_buffer(encoder>output[0], buffer);
+               status = mmal_port_send_buffer(encoder->output[0], buffer);
                CHECK_STATUS(status, "failed to send buffer");
-            }*/
+            }
 
 
     }
