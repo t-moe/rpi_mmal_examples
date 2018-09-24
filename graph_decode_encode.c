@@ -194,9 +194,6 @@ int main(int argc, char* argv[]) {
     status = mmal_port_enable(decoder->input[0], input_callback);
     CHECK_STATUS(status, "failed to enable input port")
 
-    status = mmal_port_enable(encoder->output[0], output_callback);
-    CHECK_STATUS(status, "failed to enable output port");
-
 
 
     /* connect them up - this propagates port settings from outputs to inputs */
@@ -209,6 +206,9 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "start");
     status = mmal_graph_enable(graph, NULL, NULL);
     CHECK_STATUS(status, "failed to enable graph");
+
+    status = mmal_port_enable(encoder->output[0], output_callback);
+    CHECK_STATUS(status, "failed to enable output port");
 
     while(eos_sent == MMAL_FALSE)
     {
