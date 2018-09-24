@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define CHECK_STATUS(status, msg) if (status != MMAL_SUCCESS) { fprintf(stderr, msg"\n"); goto error; }
 
-static uint8_t codec_header_bytes[512];
+static uint8_t codec_header_bytes[128];
 static unsigned int codec_header_bytes_size = sizeof(codec_header_bytes);
 
 static FILE *source_file;
@@ -177,7 +177,7 @@ int main(int argc, char **argv)
    format_in->encoding = MMAL_ENCODING_H264;
    format_in->es->video.width = 1280;
    format_in->es->video.height = 720;
-   format_in->es->video.frame_rate.num = 30;
+   format_in->es->video.frame_rate.num = 25;
    format_in->es->video.frame_rate.den = 1;
    format_in->es->video.par.num = 1;
    format_in->es->video.par.den = 1;
@@ -192,7 +192,7 @@ int main(int argc, char **argv)
       memcpy(format_in->extradata, codec_header_bytes, format_in->extradata_size);
 
    status = mmal_port_format_commit(decoder->input[0]);
-   CHECK_STATUS(status, "failed to commit format");
+   CHECK_STATUS(status, "failed to commit input format");
 
    /* Our decoder can do internal colour conversion, ask for a conversion to RGB565 */
    MMAL_ES_FORMAT_T *format_out = decoder->output[0]->format;
@@ -217,7 +217,7 @@ int main(int argc, char **argv)
    decoder->input[0]->buffer_size = decoder->input[0]->buffer_size_min;
    decoder->output[0]->buffer_num = decoder->output[0]->buffer_num_min;
    decoder->output[0]->buffer_size = decoder->output[0]->buffer_size_min;
-   pool_in = mmal_port_pool_create(decoder->output[0],
+   pool_in = mmal_port_pool_create(decoder->input[0],
                                    decoder->input[0]->buffer_num,
                                    decoder->input[0]->buffer_size);
    pool_out = mmal_port_pool_create(decoder->output[0],
@@ -373,3 +373,4 @@ int main(int argc, char **argv)
    vcos_semaphore_delete(&context.semaphore);
    return status == MMAL_SUCCESS ? 0 : -1;
 }
+
