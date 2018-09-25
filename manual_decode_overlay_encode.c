@@ -202,7 +202,7 @@ int main(int argc, char* argv[]) {
 
 
     /* connect them up - this propagates port settings from outputs to inputs */
-    status = mmal_connection_create(&conn, decoder->output[0], encoder->input[0], MMAL_CONNECTION_FLAG_TUNNELLING);
+    status = mmal_connection_create(&conn, decoder->output[0], encoder->input[0], 0);
     log_video_format(encoder->input[0]->format);
     CHECK_STATUS(status, "failed to connect decoder to encoder")
 
