@@ -15,25 +15,26 @@
 
 #define CHECK_STATUS(status, msg) if (status != MMAL_SUCCESS) { fprintf(stderr, msg"\n"); goto error; }
 
-
-static uint8_t codec_header_bytes[128];
-static unsigned int codec_header_bytes_size = sizeof(codec_header_bytes);
-
 static FILE *source_file;
+static FILE *dest_file;
 
 /* Macros abstracting the I/O, just to make the example code clearer */
 
 
 #define SOURCE_OPEN(uri) \
     source_file = fopen(uri, "rb"); if (!source_file) goto error;
-#define SOURCE_READ_CODEC_CONFIG_DATA(bytes, size) \
-    size = fread(bytes, 1, size, source_file); rewind(source_file)
 #define SOURCE_READ_DATA_INTO_BUFFER(a) \
     a->length = fread(a->data, 1, a->alloc_size - 128, source_file); \
     a->offset = 0; a->pts = a->dts = MMAL_TIME_UNKNOWN
 #define SOURCE_CLOSE() \
     if (source_file) fclose(source_file)
 
+#define DEST_OPEN(uri) \
+    dest_file = fopen(uri, "wb"); if (!dest_file) goto error;
+#define DEST_WRITE_DATA_INTO_FILE(buf,len) \
+   fwrite(buf,1,len,dest_file)
+#define DEST_CLOSE() \
+    if (dest_file) fclose(dest_file)
 
 /** Context for our application */
 static struct CONTEXT_T {
@@ -85,7 +86,7 @@ static void output_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
     /* Kick the processing thread */
     vcos_semaphore_post(&ctx->semaphore);
 
-    fprintf(stderr,"encoder output callback\n");
+    //fprintf(stderr,"encoder output callback\n");
 }
 
 
@@ -123,12 +124,13 @@ int main(int argc, char* argv[]) {
     MMAL_ES_FORMAT_T * format_in=0, *format_out=0;
     MMAL_BOOL_T eos_sent = MMAL_FALSE, eos_received;
     MMAL_BUFFER_HEADER_T *buffer;
-
+    int framenr=0;
 
     bcm_host_init();
     vcos_semaphore_create(&context.semaphore, "example", 1);
 
     SOURCE_OPEN("test.h264_2")
+    DEST_OPEN("out.h264")
 
 
     /* Create the components */
@@ -156,6 +158,10 @@ int main(int argc, char* argv[]) {
     CHECK_STATUS(status, "failed to set zero copy on decoder output");
 
 
+    status = mmal_port_parameter_set_boolean(encoder->input[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
+    CHECK_STATUS(status, "failed to set zero copy on encoder input");
+    status = mmal_port_parameter_set_boolean(encoder->output[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
+    CHECK_STATUS(status, "failed to set zero copy on encoder output");
 
     /* Set format of video decoder input port */
     format_in = decoder->input[0]->format;
@@ -169,15 +175,6 @@ int main(int argc, char* argv[]) {
     format_in->es->video.par.den = 1;
     /* If the data is known to be framed then the following flag should be set:*/
      //format_in->flags |= MMAL_ES_FORMAT_FLAG_FRAMED;
-
-
-
- /*   SOURCE_READ_CODEC_CONFIG_DATA(codec_header_bytes, codec_header_bytes_size);
-    status = mmal_format_extradata_alloc(format_in, codec_header_bytes_size);
-    CHECK_STATUS(status, "failed to allocate extradata");
-    format_in->extradata_size = codec_header_bytes_size;
-    if (format_in->extradata_size)
-      memcpy(format_in->extradata, codec_header_bytes, format_in->extradata_size);*/
 
 
     status = mmal_port_format_commit(decoder->input[0]);
@@ -228,7 +225,7 @@ int main(int argc, char* argv[]) {
         mmal_port_send_buffer(encoder->output[0], buffer);
     }
 
-    while(eos_sent == MMAL_FALSE)
+    while(eos_received == MMAL_FALSE)
     {
         /* Wait for buffer headers to be available on either the decoder input or the encoder output port */
         vcos_semaphore_wait(&context.semaphore);
@@ -277,7 +274,10 @@ int main(int argc, char* argv[]) {
 
             }
             else
-                fprintf(stderr, "encoded frame (flags %x, length %u)\n", buffer->flags, buffer->length);
+            {
+                DEST_WRITE_DATA_INTO_FILE(buffer->data, buffer->length);
+                fprintf(stderr, "encoded frame %u (flags %x, length %u)\n",framenr++, buffer->flags, buffer->length);
+            }
             mmal_buffer_header_release(buffer);
         }
 
@@ -304,14 +304,17 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "stop");
     mmal_connection_disable(conn);
 
+    SOURCE_CLOSE();
+    DEST_CLOSE();
+
 error:
     /* Cleanup everything */
+    if (conn)
+        mmal_connection_destroy(conn);
     if (decoder)
         mmal_component_release(decoder);
     if (encoder)
         mmal_component_release(encoder);
-    if (conn)
-        mmal_connection_destroy(conn);
 
     return status == MMAL_SUCCESS ? 0 : -1;
 
