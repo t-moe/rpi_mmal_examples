@@ -13,6 +13,7 @@
 #include<arpa/inet.h>
 #include<sys/socket.h>
 
+static const int MAX_BITRATE_LEVEL4 = 25000000; // 25Mbits/s
 #define CHECK_STATUS(status, msg) if (status != MMAL_SUCCESS) { fprintf(stderr, msg"\n"); goto error; }
 
 static FILE *source_file;
@@ -168,6 +169,15 @@ static void decoder_output_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
           return;
         }
 
+
+        MMAL_ES_FORMAT_T* format_out = ctx->encoder_output_port->format;
+        format_out->bitrate=MAX_BITRATE_LEVEL4;
+        status = mmal_port_format_commit(ctx->encoder_output_port);
+        if (status != MMAL_SUCCESS) {
+          fprintf(stderr,"could not set encoder output format: %s",mmal_status_to_string(status));
+          return;
+        }
+
         status = mmal_port_enable(ctx->encoder_input_port, encoder_input_callback);
         if (status != MMAL_SUCCESS) {
           fprintf(stderr,"could not enable encoder input port: %s",mmal_status_to_string(status));
@@ -241,7 +251,7 @@ int main(int argc, char* argv[]) {
     //MMAL_CONNECTION_T *conn = NULL;
     MMAL_COMPONENT_T *decoder = NULL, *encoder=NULL;
     MMAL_POOL_T *decoder_pool_in = NULL, *encoder_pool_out = NULL;
-    MMAL_ES_FORMAT_T * format_in=NULL ;
+    MMAL_ES_FORMAT_T * format_in=NULL;
     MMAL_BOOL_T eos_sent = MMAL_FALSE, eos_received;
     MMAL_BUFFER_HEADER_T *buffer;
 
@@ -301,6 +311,15 @@ int main(int argc, char* argv[]) {
     //format_out = decoder->output[0]->format;
     //status = mmal_port_format_commit(decoder->output[0]);
     //CHECK_STATUS(status, "failed to commit format");
+
+
+    MMAL_PARAMETER_VIDEO_PROFILE_T  param;
+    param.hdr.id = MMAL_PARAMETER_PROFILE;
+    param.hdr.size = sizeof(param);
+    param.profile[0].level = MMAL_VIDEO_LEVEL_H264_4;
+    param.profile[0].profile = MMAL_VIDEO_PROFILE_H264_HIGH;
+    status = mmal_port_parameter_set(encoder->output[0], &param.hdr);
+    CHECK_STATUS(status, "unable to set encoder output profile");
 
     decoder->input[0]->buffer_num = decoder->input[0]->buffer_num_min;
     decoder->input[0]->buffer_size = decoder->input[0]->buffer_size_min;
