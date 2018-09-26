@@ -27,7 +27,7 @@ File | Description | Known Working rpi-firmware versions
 example_basic_2.c | Copied from the official userland repo. Takes a video-filename as argument and decodes that video | [a5b781c](https://github.com/Hexxeh/rpi-firmware/commit/a5b781c7a761664226ff9654416776d372f8bbf0)
 graph_decode_render.c | Decodes test.h264_2 and renders it to the gpu output. Uses the graph api | [a5b781c](https://github.com/Hexxeh/rpi-firmware/commit/a5b781c7a761664226ff9654416776d372f8bbf0)
 connection_decode_encode.c | Decodes test.h264_t and re-encodes it again. Uses the connection api | [a5b781c](https://github.com/Hexxeh/rpi-firmware/commit/a5b781c7a761664226ff9654416776d372f8bbf0)
-
+manual_decode_overlay_encode.c | Decodes test.h264_t, draws some basic overlay on it (CPU) and re-encodes it. Manipulates the buffers manually.| [a5b781c](https://github.com/Hexxeh/rpi-firmware/commit/a5b781c7a761664226ff9654416776d372f8bbf0)
 
 Just type make to build them to individual programms.
 

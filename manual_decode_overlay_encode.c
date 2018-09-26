@@ -46,6 +46,7 @@ static struct CONTEXT_T {
     MMAL_STATUS_T status;
 } context;
 
+static int framenr=0;
 
 static void log_video_format(MMAL_ES_FORMAT_T *format)
 {
@@ -123,6 +124,21 @@ static MMAL_BOOL_T pool_buffer_available_callback(MMAL_POOL_T *pool, MMAL_BUFFER
 }
 
 
+static void draw_overlay(MMAL_BUFFER_HEADER_T *frame) {
+    static const int width =1280;
+    for (int y = 0; y < 720; y++) {
+           for (int x= 0; x< width; x++) {
+               if(x-framenr > 100 && x-framenr < 200 && y-framenr > 200 && y-framenr < 300) {
+                   if((((x >> 1) << 1) % 4) == 0 && (((y >> 1) << 1) % 4) == 0) {
+                       frame->data[y*width+x] = 0;
+                   } else {
+                       frame->data[y*width+x] = 255;
+                   }
+               }
+           }
+    }
+}
+
 /** Callback from the decoder output port.
  * Buffer has been produced by the port and is available for processing. */
 static void decoder_output_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
@@ -172,7 +188,7 @@ static void decoder_output_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
         fprintf(stderr,"Encoder enabled\n");
 
     } else {
-
+        draw_overlay(buffer);
         ctx->status = mmal_port_send_buffer(ctx->encoder_input_port, buffer);
         if (ctx->status != MMAL_SUCCESS)
         {
@@ -228,7 +244,7 @@ int main(int argc, char* argv[]) {
     MMAL_ES_FORMAT_T * format_in=NULL ;
     MMAL_BOOL_T eos_sent = MMAL_FALSE, eos_received;
     MMAL_BUFFER_HEADER_T *buffer;
-    int framenr=0;
+
 
     bcm_host_init();
     vcos_semaphore_create(&context.semaphore, "example", 1);
@@ -255,12 +271,14 @@ int main(int argc, char* argv[]) {
     /* Enable zero-copy parameters on all ports */
     status = mmal_port_parameter_set_boolean(decoder->input[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
     CHECK_STATUS(status, "failed to set zero copy on decoder input");
-    status = mmal_port_parameter_set_boolean(decoder->output[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
-    CHECK_STATUS(status, "failed to set zero copy on decoder output");
-    status = mmal_port_parameter_set_boolean(encoder->input[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
-    CHECK_STATUS(status, "failed to set zero copy on encoder input");
     status = mmal_port_parameter_set_boolean(encoder->output[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
     CHECK_STATUS(status, "failed to set zero copy on encoder output");
+
+    // If you dont want to modfiy the decoder data, you can also enable it on the decoder output and encoder input
+    //status = mmal_port_parameter_set_boolean(decoder->output[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
+    //CHECK_STATUS(status, "failed to set zero copy on decoder output");
+    //status = mmal_port_parameter_set_boolean(encoder->input[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
+    //CHECK_STATUS(status, "failed to set zero copy on encoder input");
 
 
     /* Set format of video decoder input port */
