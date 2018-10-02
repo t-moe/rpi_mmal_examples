@@ -9,10 +9,6 @@
 #include <stdio.h>
 #include "interface/vcos/vcos.h"
 
-
-#include<arpa/inet.h>
-#include<sys/socket.h>
-
 static const int MAX_BITRATE_LEVEL4 = 25000000; // 25Mbits/s
 #define CHECK_STATUS(status, msg) if (status != MMAL_SUCCESS) { fprintf(stderr, msg"\n"); goto error; }
 
@@ -72,9 +68,6 @@ static void encoder_input_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
     /* The encoder is done with the data, just recycle the buffer header into its pool */
     mmal_buffer_header_release(buffer);
 
-    /* Kick the processing thread */
-   // vcos_semaphore_post(&ctx->semaphore);
-
     //fprintf(stderr,"encoder input callback\n");
 }
 
@@ -127,16 +120,14 @@ static MMAL_BOOL_T pool_buffer_available_callback(MMAL_POOL_T *pool, MMAL_BUFFER
 
 static void draw_overlay(MMAL_BUFFER_HEADER_T *frame) {
     static const int width =1280;
-    for (int y = 0; y < 720; y++) {
-           for (int x= 0; x< width; x++) {
-               if(x-framenr > 100 && x-framenr < 200 && y-framenr > 200 && y-framenr < 300) {
-                   if((((x >> 1) << 1) % 4) == 0 && (((y >> 1) << 1) % 4) == 0) {
-                       frame->data[y*width+x] = 0;
-                   } else {
-                       frame->data[y*width+x] = 255;
-                   }
-               }
-           }
+    for (int y = framenr+200; y < framenr+300; y++) {
+         for (int x= framenr+100; x< framenr+200; x++) {
+             if ((x & 2) || (y & 2)) { //generate a chess-board like pattern
+                 frame->data[y*width+x] = 0;
+             } else {
+                 frame->data[y*width+x] = 255;
+             }
+         }
     }
 }
 
@@ -283,12 +274,10 @@ int main(int argc, char* argv[]) {
     CHECK_STATUS(status, "failed to set zero copy on decoder input");
     status = mmal_port_parameter_set_boolean(encoder->output[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
     CHECK_STATUS(status, "failed to set zero copy on encoder output");
-
-    // If you dont want to modfiy the decoder data, you can also enable it on the decoder output and encoder input
-    //status = mmal_port_parameter_set_boolean(decoder->output[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
-    //CHECK_STATUS(status, "failed to set zero copy on decoder output");
-    //status = mmal_port_parameter_set_boolean(encoder->input[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
-    //CHECK_STATUS(status, "failed to set zero copy on encoder input");
+    status = mmal_port_parameter_set_boolean(decoder->output[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
+    CHECK_STATUS(status, "failed to set zero copy on decoder output");
+    status = mmal_port_parameter_set_boolean(encoder->input[0], MMAL_PARAMETER_ZERO_COPY, MMAL_TRUE);
+    CHECK_STATUS(status, "failed to set zero copy on encoder input");
 
 
     /* Set format of video decoder input port */
