@@ -122,7 +122,7 @@ int main(int argc, char* argv[]) {
     MMAL_COMPONENT_T *decoder = NULL, *encoder=NULL;
     MMAL_POOL_T *decoder_pool_in = NULL, *encoder_pool_out = NULL;
     MMAL_ES_FORMAT_T * format_in=NULL, *format_out=NULL;
-    MMAL_BOOL_T eos_sent = MMAL_FALSE, eos_received;
+    MMAL_BOOL_T eos_sent = MMAL_FALSE, eos_received = MMAL_FALSE;
     MMAL_BUFFER_HEADER_T *buffer;
     int framenr=0;
 
